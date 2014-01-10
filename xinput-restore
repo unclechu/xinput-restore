@@ -1,0 +1,66 @@
+#!/bin/bash
+# License: GPLv3
+# Author: Viacheslav Lotsmanov (unclechu)
+
+if [ "$CONFIGS_PATH" == "" ]; then
+    CONFIGS_PATH=$HOME/.xinput_configs
+fi
+mkdir -p "$CONFIGS_PATH"
+
+trim () {
+    while read pipe; do
+        echo "$pipe" | sed -e "s/^\s\+\|\s\+$//g"
+    done
+}
+
+# $1 - id of xinput
+save () {
+    echo 'saving xinput device configs...'
+
+    if [ "$1" == "" ]; then
+        echo 'no id of xinput device' 1>&2
+        return 1
+    fi
+
+    xinput list --id-only | grep -Po "^$1$" > /dev/null 2>&1
+    if [ $? -eq 1 ]; then
+        echo 'xinput device not found' 1>&2
+        return 1
+    fi
+
+    device_id=$(xinput list-props "$1" | grep -i 'Device Product ID')
+    if [ $? -eq 1 ]; then
+        echo 'cannot get xinput device product id' 1>&2
+        return 1
+    fi
+    device_id=$(echo $device_id | grep -iPo '[^:]+$' | trim)
+
+    xinput list-props "$1" > "$CONFIGS_PATH/$device_id"
+}
+
+restore () {
+    echo 'restoring xinput devices configs...'
+
+    ls "$CONFIGS_PATH" | while read pipe; do
+        xinput list --id-only | while read id; do
+            device_id=$(xinput list-props "$id" | grep -i 'Device Product ID')
+            if [ $? -eq 0 ]; then
+                device_id=$(echo $device_id | grep -iPo '[^:]+$' | trim)
+                if [ "$device_id" == "$pipe" ]; then
+                    cat "$CONFIGS_PATH/$pipe" | while read prop; do
+                        prop_name=$(echo "$prop" | grep -iPo '^[a-zA-Z ]+(?=\(\d+\):)' | trim)
+                        if [ $? -eq 0 ]; then
+                            prop_val=$(echo "$prop" | grep -iPo '(?<=:).*$' | trim)
+                            xinput set-prop "$id" "$prop_name" "$prop_val" > /dev/null 2>&1
+                        fi
+                    done
+                fi
+            fi
+        done
+    done
+}
+
+case "$1" in
+    --save) save "$2" ;;
+    *) restore ;;
+esac
