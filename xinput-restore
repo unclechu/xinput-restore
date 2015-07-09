@@ -38,7 +38,7 @@ get-props () {
 	local found=false
 	local props=
 	
-	local files_list=$(ls "$CONFIGS_PATH")
+	local files_list=$(ls "$CONFIGS_PATH/"*)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
 	local count=$[$(echo "$files_list" | wc -l)]
 	local seq=$(seq $count)
@@ -72,7 +72,7 @@ get-props () {
 			[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
 			
 			product_id=$(get-product-id "$props")
-			[ $? -ne 0 ] && { echo "Cannot product id by file '$filename'." 1>&2; return 1; }
+			[ $? -ne 0 ] && { echo "Cannot get product id by file '$filename'." 1>&2; return 1; }
 			
 			if [ "x$in" == "x$product_id" ]; then
 				found=true
@@ -130,9 +130,41 @@ save () {
 		[ "x$filename" == 'x' ] && { echo "Cannot get device name by id '$in_id'." 1>&2; return 1; }
 	fi
 	
+	local dest="$CONFIGS_PATH/$filename"
+	
+	# remove old saved props by this product id
+	local props=$(xinput list-props "$in_id")
+	[ $? -ne 0 ] && { echo "Cannot get properties by id '$in_id'." 1>&2; return 1; }
+	local product_id=$(get-product-id "$props")
+	[ $? -ne 0 ] && { echo "Cannot get product id by id '$in_id'." 1>&2; return 1; }
+	local files_list=$(ls "$CONFIGS_PATH/"*)
+	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
+	local count=$[$(echo "$files_list" | wc -l)]
+	local seq=$(seq $count)
+	for i in $seq; do
+		
+		local item_filename=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+		
+		[ ! -f "$item_filename" ] && continue
+		
+		local item_props=$(cat "$item_filename")
+		[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
+		
+		local item_product_id=$(get-product-id "$item_props")
+		[ $? -ne 0 ] && { echo "Cannot get product id by file '$item_filename'." 1>&2; return 1; }
+		
+		if [ "x$item_product_id" == "x$product_id" ]; then
+			echo "Removing old saved properties file '$item_filename'..."
+			rm "$item_filename"
+			[ $? -ne 0 ] && { echo "Cannot remove old saved properties file '$item_filename'." 1>&2; return 1; }
+		fi
+	done
+	
 	# save properties to file
-	xinput list-props "$in_id" > "$CONFIGS_PATH/$filename"
-	[ $? -ne 0 ] && { echo "." 1>&2; return 1; }
+	xinput list-props "$in_id" > "$dest"
+	[ $? -ne 0 ] && { echo "Cannot save properties to file '$dest'." 1>&2; return 1; }
+	
+	echo "Properties are saved to file '$dest'."
 	
 	return 0
 }
@@ -153,7 +185,7 @@ restore () {
 	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$in'."; return 1; }
 	
 	local product_id=$(get-product-id "$props")
-	[ $? -ne 0 ] && { echo "Cannot product id by '$1'." 1>&2; return 1; }
+	[ $? -ne 0 ] && { echo "Cannot get product id by '$1'." 1>&2; return 1; }
 	
 	for i in $(seq $[$(echo "$devices_ids" | wc -l)]); do
 		
@@ -196,7 +228,7 @@ restore-all () {
 	
 	echo "Restoring all saved properties..."
 	
-	ls "$CONFIGS_PATH" | while read file; do
+	ls "$CONFIGS_PATH/"* | while read file; do
 		
 		[ ! -f "$file" ] && continue
 		
