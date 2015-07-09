@@ -17,14 +17,14 @@ Save properties of your device
 $ xinput-restore --save %ID%
 ```
 It will save properties of your device to file
-with name as device name to `~/.xinput_configs/`.
+with name as device name to `~/.xinput-saved-props/`.
 
 You can specify custom file name:
 ```bash
 $ xinput-restore --save %ID% red-mouse
 ```
 
-You can change some properties in `~/.xinput_configs/`
+You can change some properties in `~/.xinput-saved-props/`
 
 Restore properties for specific device by file name:
 ```bash
