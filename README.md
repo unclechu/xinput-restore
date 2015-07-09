@@ -16,7 +16,7 @@ Save properties of your device
 ```bash
 $ xinput-restore --save %ID%
 ```
-It will save propetries of your device to file
+It will save properties of your device to file
 with name as device name to `~/.xinput_configs/`.
 
 You can specify custom file name:
