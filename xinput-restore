@@ -39,7 +39,7 @@ get-props-filename () {
 	local props=
 	local out_file=
 	
-	local files_list=$(ls "$XINPUT_RESTORE_PROPS_DIR/"*)
+	local files_list=$(find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
 	local count=$[$(echo "$files_list" | wc -l)]
 	local seq=$(seq $count)
@@ -148,7 +148,7 @@ save () {
 	[ $? -ne 0 ] && { echo "Cannot get properties by id '$in_id'." 1>&2; return 1; }
 	local product_id=$(get-product-id "$props")
 	[ $? -ne 0 ] && { echo "Cannot get product id by id '$in_id'." 1>&2; return 1; }
-	local files_list=$(ls "$XINPUT_RESTORE_PROPS_DIR/"*)
+	local files_list=$(find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
 	local count=$[$(echo "$files_list" | wc -l)]
 	local seq=$(seq $count)
@@ -246,7 +246,7 @@ restore-all () {
 	
 	echo "Restoring all saved properties..."
 	
-	ls "$XINPUT_RESTORE_PROPS_DIR/"* | while read file; do
+	find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1 | while read file; do
 		[ ! -f "$file" ] && continue
 		restore "$file"
 	done
