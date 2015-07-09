@@ -57,7 +57,7 @@ get-props () {
 	# when $in is file
 	if [ $found == true ]; then
 		
-		local props=$(cat "$in")
+		local props=$(cat "$CONFIGS_PATH/$in")
 		[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
 		
 	# when $in is device product id
@@ -172,7 +172,7 @@ save () {
 # $1 - file name or device product id
 restore () {
 	
-	local in=$(echo "$1" | trim)
+	local in=$(basename "$1" | trim)
 	local devices=()
 	local devices_ids=$(xinput list --id-only)
 	
@@ -200,7 +200,7 @@ restore () {
 	
 	if [ $[${#devices[@]}] -le 0 ]; then
 		echo "Device not found by '$in'." 1>&2
-		exit 1
+		return 1
 	fi
 	
 	echo "$props" | while read prop; do
@@ -226,6 +226,7 @@ restore () {
 		done
 	done
 	
+	echo "Properties are restored for device with product id '$product_id'."
 	return 0
 }
 
@@ -234,16 +235,11 @@ restore-all () {
 	echo "Restoring all saved properties..."
 	
 	ls "$CONFIGS_PATH/"* | while read file; do
-		
 		[ ! -f "$file" ] && continue
-		
 		restore "$file"
-		if [ $? -ne 0 ]; then
-			echo "Cannot restore device properties by file '$file'" 1>&2
-			return 1
-		fi
 	done
 	
+	echo "Restoring properties complete."
 	return 0
 }
 
