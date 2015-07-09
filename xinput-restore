@@ -1,13 +1,13 @@
 #!/bin/bash
 #================================================================#
-# Version : 0.3                                                  #
+# Version : 0.4                                                  #
 # Author  : Viacheslav Lotsmanov                                 #
 # License : GNU/GPLv3 (https://www.gnu.org/licenses/gpl-3.0.txt) #
 #================================================================#
 
-[ "x$CONFIGS_PATH" == "x" ] && CONFIGS_PATH="$HOME/.xinput-saved-props"
+[ -z "$XINPUT_RESTORE_PROPS_DIR" ] && XINPUT_RESTORE_PROPS_DIR="$HOME/.xinput-saved-props"
 
-mkdir -p "$CONFIGS_PATH"
+[ ! -d "$XINPUT_RESTORE_PROPS_DIR" ] && mkdir -p "$XINPUT_RESTORE_PROPS_DIR"
 
 trim () {
 	while read line; do
@@ -39,7 +39,7 @@ get-props-filename () {
 	local props=
 	local out_file=
 	
-	local files_list=$(ls "$CONFIGS_PATH/"*)
+	local files_list=$(ls "$XINPUT_RESTORE_PROPS_DIR/"*)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
 	local count=$[$(echo "$files_list" | wc -l)]
 	local seq=$(seq $count)
@@ -96,7 +96,7 @@ get-props-filename () {
 get-props () {
 	
 	local filename=$1
-	local props=$(cat "$CONFIGS_PATH/$filename")
+	local props=$(cat "$XINPUT_RESTORE_PROPS_DIR/$filename")
 	[ $? -ne 0 ] && { echo "Cannot read file '$filename'." 1>&2; return 1; }
 	
 	echo "$props"
@@ -141,14 +141,14 @@ save () {
 		[ "x$filename" == 'x' ] && { echo "Cannot get device name by id '$in_id'." 1>&2; return 1; }
 	fi
 	
-	local dest="$CONFIGS_PATH/$filename"
+	local dest="$XINPUT_RESTORE_PROPS_DIR/$filename"
 	
 	# remove old saved props by this product id
 	local props=$(xinput list-props "$in_id")
 	[ $? -ne 0 ] && { echo "Cannot get properties by id '$in_id'." 1>&2; return 1; }
 	local product_id=$(get-product-id "$props")
 	[ $? -ne 0 ] && { echo "Cannot get product id by id '$in_id'." 1>&2; return 1; }
-	local files_list=$(ls "$CONFIGS_PATH/"*)
+	local files_list=$(ls "$XINPUT_RESTORE_PROPS_DIR/"*)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
 	local count=$[$(echo "$files_list" | wc -l)]
 	local seq=$(seq $count)
@@ -246,7 +246,7 @@ restore-all () {
 	
 	echo "Restoring all saved properties..."
 	
-	ls "$CONFIGS_PATH/"* | while read file; do
+	ls "$XINPUT_RESTORE_PROPS_DIR/"* | while read file; do
 		[ ! -f "$file" ] && continue
 		restore "$file"
 	done

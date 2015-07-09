@@ -46,5 +46,5 @@ $ xinput-restore
 
 Also you can redefine saved properties files directory:
 ```bash
-$ env CONFIGS_PATH="$HOME/.custom-saved-xinput-props-dir" xinput-restore
+$ env XINPUT_RESTORE_PROPS_DIR="$HOME/.custom-saved-xinput-props-dir" xinput-restore
 ```
