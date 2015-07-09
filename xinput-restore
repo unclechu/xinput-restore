@@ -31,12 +31,13 @@ get-product-id () {
 }
 
 # $1 - file name or device product id
-get-props () {
+get-props-filename () {
 	
 	local in=$1
 	local product_id=
 	local found=false
 	local props=
+	local out_file=
 	
 	local files_list=$(ls "$CONFIGS_PATH/"*)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
@@ -57,10 +58,10 @@ get-props () {
 	# when $in is file
 	if [ $found == true ]; then
 		
-		local props=$(cat "$CONFIGS_PATH/$in")
-		[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
+		out_file=$in
+		found=true
 		
-	# when $in is device product id
+	# when $in is device product id or file not found
 	else
 		for i in $seq; do
 			
@@ -75,6 +76,7 @@ get-props () {
 			[ $? -ne 0 ] && { echo "Cannot get product id by file '$file'." 1>&2; return 1; }
 			
 			if [ "x$in" == "x$product_id" ]; then
+				out_file=$(basename "$file")
 				found=true
 				break
 			fi
@@ -86,7 +88,16 @@ get-props () {
 		return 1
 	fi
 	
-	[ "x$props" == 'x' ] && { echo "Cannot get device properties by '$in'." 1>&2; return 1; }
+	echo "$out_file"
+	return 0
+}
+
+# $1 - file name
+get-props () {
+	
+	local filename=$1
+	local props=$(cat "$CONFIGS_PATH/$filename")
+	[ $? -ne 0 ] && { echo "Cannot read file '$filename'." 1>&2; return 1; }
 	
 	echo "$props"
 	return 0
@@ -175,13 +186,14 @@ restore () {
 	local in=$(basename "$1" | trim)
 	local devices=()
 	local devices_ids=$(xinput list --id-only)
+	local props_filename=$(get-props-filename "$in")
 	
 	echo "Restoring device properties by '$in'..."
 	
 	# required arg validate
 	[ "x$in" == "x" ] && { echo "No id of device." 1>&2; return 1; }
 	
-	local props=$(get-props "$(basename "$in")")
+	local props=$(get-props "$props_filename")
 	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$in'."; return 1; }
 	
 	local product_id=$(get-product-id "$props")
@@ -226,7 +238,7 @@ restore () {
 		done
 	done
 	
-	echo "Properties are restored for device with product id '$product_id'."
+	echo "Properties are restored from file '$props_filename'."
 	return 0
 }
 
