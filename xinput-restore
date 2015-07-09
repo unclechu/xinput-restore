@@ -45,16 +45,16 @@ get-props () {
 	
 	for i in $seq; do
 		
-		local filename=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+		local file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 		
-		# is filename
-		if [[ "x$in" == "x$filename" ]] && [[ -f "$filename" ]]; then
+		# is file
+		if [[ "x$in" == "x$(basename "$file")" ]] && [[ -f "$file" ]]; then
 			found=true
 			break
 		fi
 	done
 	
-	# when $in is filename
+	# when $in is file
 	if [ $found == true ]; then
 		
 		local props=$(cat "$in")
@@ -64,15 +64,15 @@ get-props () {
 	else
 		for i in $seq; do
 			
-			local filename=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+			local file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 			
-			[ ! -f "$filename" ] && continue
+			[ ! -f "$file" ] && continue
 			
-			props=$(cat "$filename")
+			props=$(cat "$file")
 			[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
 			
 			product_id=$(get-product-id "$props")
-			[ $? -ne 0 ] && { echo "Cannot get product id by file '$filename'." 1>&2; return 1; }
+			[ $? -ne 0 ] && { echo "Cannot get product id by file '$file'." 1>&2; return 1; }
 			
 			if [ "x$in" == "x$product_id" ]; then
 				found=true
@@ -143,20 +143,20 @@ save () {
 	local seq=$(seq $count)
 	for i in $seq; do
 		
-		local item_filename=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+		local item_file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 		
-		[ ! -f "$item_filename" ] && continue
+		[ ! -f "$item_file" ] && continue
 		
-		local item_props=$(cat "$item_filename")
+		local item_props=$(cat "$item_file")
 		[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
 		
 		local item_product_id=$(get-product-id "$item_props")
-		[ $? -ne 0 ] && { echo "Cannot get product id by file '$item_filename'." 1>&2; return 1; }
+		[ $? -ne 0 ] && { echo "Cannot get product id by file '$item_file'." 1>&2; return 1; }
 		
 		if [ "x$item_product_id" == "x$product_id" ]; then
-			echo "Removing old saved properties file '$item_filename'..."
-			rm "$item_filename"
-			[ $? -ne 0 ] && { echo "Cannot remove old saved properties file '$item_filename'." 1>&2; return 1; }
+			echo "Removing old saved properties file '$item_file'..."
+			rm "$item_file"
+			[ $? -ne 0 ] && { echo "Cannot remove old saved properties file '$item_file'." 1>&2; return 1; }
 		fi
 	done
 	
@@ -181,7 +181,7 @@ restore () {
 	# required arg validate
 	[ "x$in" == "x" ] && { echo "No id of device." 1>&2; return 1; }
 	
-	local props=$(get-props "$in")
+	local props=$(get-props "$(basename "$in")")
 	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$in'."; return 1; }
 	
 	local product_id=$(get-product-id "$props")
@@ -197,6 +197,11 @@ restore () {
 			devices[${#devices[@]}]=$id
 		fi
 	done
+	
+	if [ $[${#devices[@]}] -le 0 ]; then
+		echo "Device not found by '$in'." 1>&2
+		exit 1
+	fi
 	
 	echo "$props" | while read prop; do
 		
