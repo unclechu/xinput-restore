@@ -34,19 +34,25 @@ get-product-id () {
 get-props-filename () {
 	
 	local in=$1
-	local product_id=
 	local found=false
+	
+	local product_id=
 	local props=
 	local out_file=
+	local files_list=
+	local count=
+	local seq=
 	
-	local files_list=$(find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1)
+	files_list=$(find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
-	local count=$[$(echo "$files_list" | wc -l)]
-	local seq=$(seq $count)
+	count=$[$(echo "$files_list" | wc -l)]
+	seq=$(seq $count)
 	
 	for i in $seq; do
 		
-		local file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+		local file=
+		
+		file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 		
 		# is file
 		if [[ "x$in" == "x$(basename "$file")" ]] && [[ -f "$file" ]]; then
@@ -65,8 +71,9 @@ get-props-filename () {
 	else
 		for i in $seq; do
 			
-			local file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+			local file=
 			
+			file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 			[ ! -f "$file" ] && continue
 			
 			props=$(cat "$file")
@@ -84,7 +91,7 @@ get-props-filename () {
 	fi
 	
 	if [ $found == false ]; then
-		echo "Device by '$in' not found." 1>&2
+		echo "Device not found by '$in'." 1>&2
 		return 1
 	fi
 	
@@ -96,7 +103,9 @@ get-props-filename () {
 get-props () {
 	
 	local filename=$1
-	local props=$(cat "$XINPUT_RESTORE_PROPS_DIR/$filename")
+	local props=
+	
+	props=$(cat "$XINPUT_RESTORE_PROPS_DIR/$filename")
 	[ $? -ne 0 ] && { echo "Cannot read file '$filename'." 1>&2; return 1; }
 	
 	echo "$props"
@@ -115,6 +124,12 @@ save () {
 	local prefix='Device '
 	local filename=
 	local props=
+	local dest=
+	local props=
+	local product_id=
+	local files_list=
+	local count=
+	local seq=
 	
 	# required arg validate
 	[ "x$in_id" == "x" ] && { echo "No id of device." 1>&2; return 1; }
@@ -141,27 +156,31 @@ save () {
 		[ "x$filename" == 'x' ] && { echo "Cannot get device name by id '$in_id'." 1>&2; return 1; }
 	fi
 	
-	local dest="$XINPUT_RESTORE_PROPS_DIR/$filename"
+	dest="$XINPUT_RESTORE_PROPS_DIR/$filename"
 	
 	# remove old saved props by this product id
-	local props=$(xinput list-props "$in_id")
+	props=$(xinput list-props "$in_id")
 	[ $? -ne 0 ] && { echo "Cannot get properties by id '$in_id'." 1>&2; return 1; }
-	local product_id=$(get-product-id "$props")
+	product_id=$(get-product-id "$props")
 	[ $? -ne 0 ] && { echo "Cannot get product id by id '$in_id'." 1>&2; return 1; }
-	local files_list=$(find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1)
+	files_list=$(find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1)
 	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
-	local count=$[$(echo "$files_list" | wc -l)]
-	local seq=$(seq $count)
+	count=$[$(echo "$files_list" | wc -l)]
+	seq=$(seq $count)
 	for i in $seq; do
 		
-		local item_file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+		local item_file=
+		local item_props=
+		local item_product_id=
+		
+		item_file=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 		
 		[ ! -f "$item_file" ] && continue
 		
-		local item_props=$(cat "$item_file")
+		item_props=$(cat "$item_file")
 		[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
 		
-		local item_product_id=$(get-product-id "$item_props")
+		item_product_id=$(get-product-id "$item_props")
 		[ $? -ne 0 ] && { echo "Cannot get product id by file '$item_file'." 1>&2; return 1; }
 		
 		if [ "x$item_product_id" == "x$product_id" ]; then
@@ -183,26 +202,42 @@ save () {
 # $1 - file name or device product id
 restore () {
 	
-	local in=$(basename "$1" | trim)
-	local devices=()
-	local devices_ids=$(xinput list --id-only)
-	local props_filename=$(get-props-filename "$in")
+	local in=$(echo "$1" | trim)
 	
 	echo "Restoring device properties by '$in'..."
+	
+	local devices=()
+	local devices_ids=
+	local props_filename=
+	local props=
+	local product_id=
+	
+	devices_ids=$(xinput list --id-only)
+	[ $? -ne 0 ] && { echo "Cannot get xinput ids list." 1>&2; return 1; }
+	
+	props_filename=$(get-props-filename "$in")
+	[ $? -ne 0 ] && { echo "Cannot get file name by '$in'." 1>&2; return 1; }
 	
 	# required arg validate
 	[ "x$in" == "x" ] && { echo "No id of device." 1>&2; return 1; }
 	
-	local props=$(get-props "$props_filename")
-	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$in'."; return 1; }
+	props=$(get-props "$props_filename")
+	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$in'." 1>&2; return 1; }
 	
-	local product_id=$(get-product-id "$props")
+	product_id=$(get-product-id "$props")
 	[ $? -ne 0 ] && { echo "Cannot get product id by '$1'." 1>&2; return 1; }
 	
 	for i in $(seq $[$(echo "$devices_ids" | wc -l)]); do
 		
-		local id=$(echo "$devices_ids" | head -n $i | tail -n 1 | trim)
-		local item_product_id=$(get-product-id "$(xinput list-props "$id")")
+		local id=
+		local item_props=
+		local item_product_id=
+		
+		id=$(echo "$devices_ids" | head -n $i | tail -n 1 | trim)
+		
+		item_props=$(xinput list-props "$id")
+		[ $? -ne 0 ] && continue
+		item_product_id=$(get-product-id "$item_props")
 		[ $? -ne 0 ] && continue
 		
 		if [ "x$item_product_id" == "x$product_id" ]; then
@@ -217,18 +252,22 @@ restore () {
 	
 	echo "$props" | while read prop; do
 		
-		local prop=$(echo "$prop" | sed 's/#.*$//g' | trim)
+		local prop_left_part=
+		local prop_num=
+		local prop_val=
+		
+		prop=$(echo "$prop" | sed 's/#.*$//g' | trim)
 		[ "x$prop" == "x" ] && continue
 		
-		local prop_left_part=$(echo "$prop" | grep -io '^[a-z0-9 ]\+([0-9]\+):')
+		prop_left_part=$(echo "$prop" | grep -io '^[a-z0-9 ]\+([0-9]\+):')
 		if [[ $? -ne 0 ]] || [[ "x$prop_left_part" == "x" ]]; then
 			continue
 		fi
 		
-		local prop_num=$(echo "$prop_left_part" | grep -o '([0-9]\+)')
+		prop_num=$(echo "$prop_left_part" | grep -o '([0-9]\+)')
 		prop_num=${prop_num:1:-1}
 		
-		local prop_val=$(echo "${prop:${#prop_left_part}}" | trim)
+		prop_val=$(echo "${prop:${#prop_left_part}}" | trim)
 		if [[ $? -ne 0 ]] || [[ "x$prop_val" == "x" ]]; then
 			continue
 		fi
@@ -248,7 +287,7 @@ restore-all () {
 	
 	find "$XINPUT_RESTORE_PROPS_DIR" -maxdepth 1 | while read file; do
 		[ ! -f "$file" ] && continue
-		restore "$file"
+		restore "$(basename "$file")"
 	done
 	
 	echo "Restoring properties complete."
