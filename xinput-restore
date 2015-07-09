@@ -5,7 +5,7 @@
 # License : GNU/GPLv3 (https://www.gnu.org/licenses/gpl-3.0.txt) #
 #================================================================#
 
-[ "x$CONFIGS_PATH" == "x" ] && CONFIGS_PATH="$HOME/.xinput_configs"
+[ "x$CONFIGS_PATH" == "x" ] && CONFIGS_PATH="$HOME/.xinput-saved-props"
 
 mkdir -p "$CONFIGS_PATH"
 
@@ -19,50 +19,74 @@ trim () {
 get-product-id () {
 	
 	local product_id=
+	
+	# parse device id prop
+	product_id=$(echo "$1" | grep -i 'Device Product ID')
+	[ $? -ne 0 ] && return $?
+	product_id=$(echo $product_id | head -n1 | grep -o ':.*$')
+	[ $? -ne 0 ] && return $?
+	
+	echo "${product_id:1}" | trim
+	return 0
 }
 
 # $1 - file name or device product id
 get-props () {
 	
-	local props=
-	local tmp_props=
+	local in=$1
+	local product_id=
 	local found=false
+	local props=
 	
-	ls "$CONFIGS_PATH" | grep -F "$1" 1>/dev/null
+	local files_list=$(ls "$CONFIGS_PATH")
+	[ $? -ne 0 ] && { echo "Cannot get files list" 1>&2; return 1; }
+	local count=$[$(echo "$files_list" | wc -l)]
+	local seq=$(seq $count)
 	
-	# when $1 is filename
-	if [[ $? -eq 0 ]] && [[ -f "$1" ]]; then
+	for i in $seq; do
 		
-		tmp_props=$(cat "$1")
-		[ $? -ne 0 ] && { echo "Cannot read file '$1'." 1>&2; return 1; }
+		local filename=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
 		
-		found=true
-		
-	# when $1 is device product id
-	else
-		ls "$CONFIGS_PATH" | while read filename; do
-			
-			if [[ $found == false ]] || [[ ! -f "$filename" ]]; then
-				continue
-			fi
-			
-			tmp_props=$(cat "$filename")
-			[ $? -ne 0 ] && { echo "Cannot read file '$1'." 1>&2; return 1; }
-			
+		# is filename
+		if [[ "x$in" == "x$filename" ]] && [[ -f "$filename" ]]; then
 			found=true
-		done
-	fi
+			break
+		fi
+	done
 	
+	# when $in is filename
 	if [ $found == true ]; then
-		props=$tmp_props
+		
+		local props=$(cat "$in")
+		[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
+		
+	# when $in is device product id
 	else
-		# find by device product id
-		ls "$CONFIGS_PATH" | while read filename; do
-			# TODO
+		for i in $seq; do
+			
+			local filename=$(echo "$files_list" | head -n $i | tail -n 1 | trim)
+			
+			[ ! -f "$filename" ] && continue
+			
+			props=$(cat "$filename")
+			[ $? -ne 0 ] && { echo "Cannot read file '$in'." 1>&2; return 1; }
+			
+			product_id=$(get-product-id "$props")
+			[ $? -ne 0 ] && { echo "Cannot product id by file '$filename'." 1>&2; return 1; }
+			
+			if [ "x$in" == "x$product_id" ]; then
+				found=true
+				break
+			fi
 		done
 	fi
 	
-	[ "x$props" == 'x' ] && { echo "Cannot get device props by '$1'." 1>&2; return 1; }
+	if [ $found == false ]; then
+		echo "Device by '$in' not found." 1>&2
+		return 1
+	fi
+	
+	[ "x$props" == 'x' ] && { echo "Cannot get device properties by '$in'." 1>&2; return 1; }
 	
 	echo "$props"
 	return 0
@@ -72,41 +96,42 @@ get-props () {
 # $2 (optional) - name of file
 save () {
 	
-	echo "Saving xinput device properties by id '$1'..."
+	local in_id=$(echo "$1" | trim)
+	local in_name=$(echo "$2" | trim)
 	
+	echo "Saving device properties by id '$in_id'..."
+	
+	local prefix='Device '
 	local filename=
-	local product_id=
 	local props=
 	
 	# required arg validate
-	[ "x$1" == "x" ] && { echo "No id of device." 1>&2; return 1; }
+	[ "x$in_id" == "x" ] && { echo "No id of device." 1>&2; return 1; }
+	
+	echo "$in_id" | grep '^[0-9]\+$' &>/dev/null
+	[ $? -ne 0 ] && { echo "Incorrect device id: '$in_id'." 1>&2; return 1; }
 	
 	# check in ids list
-	xinput list --id-only | grep -Po "^$1$" > /dev/null 2>&1
-	[ $? -ne 0 ] && { echo "Device not found by id '$1'." 1>&2; return 1; }
+	xinput list --id-only | grep "^${in_id}$" &>/dev/null
+	[ $? -ne 0 ] && { echo "Device not found by id '$in_id'." 1>&2; return 1; }
 	
 	# get all props to variable
-	props=$(xinput list-props "$1")
-	[ $? -ne 0 ] && { echo "Cannot get device props by id '$1'." 1>&2; return 1; }
-	
-	# parse device id prop
-	product_id=$(echo "$props" | grep -i 'Device Product ID' | head -n1)
-	[ $? -ne 0 ] && { echo "Cannot get device product id by id '$1'." 1>&2; return 1; }
-	product_id=$(echo $product_id | sed 's/^.*\([^:]\+\)$/\1/g' | trim)
-	[ $? -ne 0 ] && { echo "Cannot get device product id by id '$1'." 1>&2; return 1; }
+	props=$(xinput list-props "$in_id")
+	[ $? -ne 0 ] && { echo "Cannot get device properties by id '$in_id'." 1>&2; return 1; }
 	
 	# get filename from args or from device name
-	if [ "x$2" != "x" ]; then
-		filename=$2
+	if [ "x$in_name" != "x" ]; then
+		filename=$in_name
 	else
-		filename=$(echo "$props" | grep -i "^Device '" | head -n1)
-		[ $? -ne 0 ] && { echo "Cannot get device name by id '$1'." 1>&2; return 1; }
-		filename=$(echo "$filename" | sed -e "s/Device '\([^']\+\)'.*$/\1/g")
-		[ $? -ne 0 ] && { echo "Cannot get device name by id '$1'." 1>&2; return 1; }
+		filename=$(echo "$props" | grep -io "^$prefix'[^']\+'")
+		[ $? -ne 0 ] && { echo "Cannot get device name by id '$in_id'." 1>&2; return 1; }
+		
+		filename=$(echo "${filename:$[${#prefix}+1]:-1}" | trim)
+		[ "x$filename" == 'x' ] && { echo "Cannot get device name by id '$in_id'." 1>&2; return 1; }
 	fi
 	
 	# save properties to file
-	xinput list-props "$1" > "$CONFIGS_PATH/$filename"
+	xinput list-props "$in_id" > "$CONFIGS_PATH/$filename"
 	[ $? -ne 0 ] && { echo "." 1>&2; return 1; }
 	
 	return 0
@@ -115,13 +140,31 @@ save () {
 # $1 - file name or device product id
 restore () {
 	
-	echo "Restoring xinput device properties by '$1'..."
+	local in=$(echo "$1" | trim)
+	local devices=()
+	local devices_ids=$(xinput list --id-only)
+	
+	echo "Restoring device properties by '$in'..."
 	
 	# required arg validate
-	[ "x$1" == "x" ] && { echo "No id of device." 1>&2; return 1; }
+	[ "x$in" == "x" ] && { echo "No id of device." 1>&2; return 1; }
 	
-	local props=$(get-props "$1")
-	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$1'."; return 1; }
+	local props=$(get-props "$in")
+	[ $? -ne 0 ] && { echo "Cannot restore device properties by '$in'."; return 1; }
+	
+	local product_id=$(get-product-id "$props")
+	[ $? -ne 0 ] && { echo "Cannot product id by '$1'." 1>&2; return 1; }
+	
+	for i in $(seq $[$(echo "$devices_ids" | wc -l)]); do
+		
+		local id=$(echo "$devices_ids" | head -n $i | tail -n 1 | trim)
+		local item_product_id=$(get-product-id "$(xinput list-props "$id")")
+		[ $? -ne 0 ] && continue
+		
+		if [ "x$item_product_id" == "x$product_id" ]; then
+			devices[${#devices[@]}]=$id
+		fi
+	done
 	
 	echo "$props" | while read prop; do
 		
@@ -141,7 +184,9 @@ restore () {
 			continue
 		fi
 		
-		xinput set-prop "$1" "$prop_num" "$prop_val" &>/dev/null
+		for id in "${devices[@]}"; do
+			xinput set-prop "$id" "$prop_num" "$prop_val" &>/dev/null
+		done
 	done
 	
 	return 0
@@ -149,7 +194,7 @@ restore () {
 
 restore-all () {
 	
-	echo "Restoring xinput devices all configs..."
+	echo "Restoring all saved properties..."
 	
 	ls "$CONFIGS_PATH" | while read file; do
 		
